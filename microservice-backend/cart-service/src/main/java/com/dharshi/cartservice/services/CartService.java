@@ -14,4 +14,8 @@ public interface CartService {
     ResponseEntity<ApiResponseDto<?>> removeCartItemFromCart(String userId, String productId) throws ServiceLogicException, ResourceNotFoundException;
     ResponseEntity<ApiResponseDto<?>> clearCartById(String id) throws ServiceLogicException, ResourceNotFoundException;
     ResponseEntity<ApiResponseDto<?>> getCartById(String id) throws ServiceLogicException;
+
+    ResponseEntity<ApiResponseDto<?>> getWaitlistItemsByUser(String userId) throws ResourceNotFoundException, ServiceLogicException;
+ResponseEntity<ApiResponseDto<?>> removeWishlistItem(String userId, String productId) throws ServiceLogicException, ResourceNotFoundException;
 }
+

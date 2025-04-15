@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -64,13 +65,19 @@ public class CartServiceImpl implements CartService {
     @Override
     public ResponseEntity<ApiResponseDto<?>> getCartItemsByUser(String userId) throws ResourceNotFoundException, ServiceLogicException {
         try {
-
             if (Objects.requireNonNull(userService.existsUserById(userId).getBody()).getResponse()) {
-                if(!cartRepository.existsByUserId(userId)) {
+                
+                if (!cartRepository.existsByUserId(userId)) {
                     createAndSaveNewCart(userId);
                 }
 
                 Cart userCart = getCart(userId);
+
+                Set<CartItem> filteredCartItems = userCart.getCartItems().stream()
+                        .filter(item -> !item.isWishlist() || item.getQuantity() > 0)
+                        .collect(Collectors.toSet());
+
+                userCart.setCartItems(filteredCartItems); // temporarily update the cart to filtered set
 
                 CartResponseDto cartResponse = cartToCartResponseDto(userCart);
 
@@ -81,13 +88,49 @@ public class CartServiceImpl implements CartService {
                                 .build()
                 );
             }
-        }catch (Exception e) {
+        } catch (Exception e) {
             log.error("Failed to find cart: " + e.getMessage());
             throw new ServiceLogicException("Unable to find cart!");
         }
-        throw new ResourceNotFoundException("User not found with id " + userId);
 
+        throw new ResourceNotFoundException("User not found with id " + userId);
     }
+    
+    
+    @Override
+    public ResponseEntity<ApiResponseDto<?>> getWaitlistItemsByUser(String userId) throws ResourceNotFoundException, ServiceLogicException {
+        try {
+            if (Objects.requireNonNull(userService.existsUserById(userId).getBody()).getResponse()) {
+                
+                if (!cartRepository.existsByUserId(userId)) {
+                    createAndSaveNewCart(userId);
+                }
+
+                Cart userCart = getCart(userId);
+
+                Set<CartItem> filteredCartItems = userCart.getCartItems().stream()
+                        .filter(item -> item.isWishlist() )
+                        .collect(Collectors.toSet());
+
+                userCart.setCartItems(filteredCartItems); // temporarily update the cart to filtered set
+
+                CartResponseDto cartResponse = cartToCartResponseDto(userCart);
+
+                return ResponseEntity.ok(
+                        ApiResponseDto.builder()
+                                .isSuccess(true)
+                                .response(cartResponse)
+                                .build()
+                );
+            }
+        } catch (Exception e) {
+            log.error("Failed to find cart: " + e.getMessage());
+            throw new ServiceLogicException("Unable to find cart!");
+        }
+
+        throw new ResourceNotFoundException("User not found with id " + userId);
+    }
+
 
     @Override
     public ResponseEntity<ApiResponseDto<?>> removeCartItemFromCart(String userId, String productId) throws ServiceLogicException, ResourceNotFoundException {
@@ -113,6 +156,47 @@ public class CartServiceImpl implements CartService {
         }
         throw new ResourceNotFoundException("No cart found for user " + userId);
     }
+    
+    @Override
+    public ResponseEntity<ApiResponseDto<?>> removeWishlistItem(String userId, String productId)
+            throws ServiceLogicException, ResourceNotFoundException {
+        try {
+            if (cartRepository.existsByUserId(userId)) {
+                Cart userCart = cartRepository.findByUserId(userId);
+                boolean updated = false;
+
+                Set<CartItem> cartItems = userCart.getCartItems();
+                for (CartItem item : cartItems) {
+                    if (item.getProductId().equals(productId) && item.isWishlist()) {
+                        item.setWishlist(false); // ✅ Just set wishlist to false
+                        updated = true;
+                        break;
+                    }
+                }
+
+                if (!updated) {
+                    throw new ResourceNotFoundException("Wishlist item not found: " + productId);
+                }
+
+                userCart.setCartItems(cartItems);
+                cartRepository.save(userCart);
+
+                return ResponseEntity.ok(
+                        ApiResponseDto.builder()
+                                .isSuccess(true)
+                                .message("Item successfully removed from wishlist!")
+                                .build()
+                );
+            }
+        } catch (Exception e) {
+            log.error("Failed to remove item from wishlist: " + e.getMessage());
+            throw new ServiceLogicException("Unable to remove item from wishlist!");
+        }
+
+        throw new ResourceNotFoundException("No cart found for user " + userId);
+    }
+
+
 
     @Override
     public ResponseEntity<ApiResponseDto<?>> clearCartById(String id) throws ServiceLogicException, ResourceNotFoundException {
@@ -173,6 +257,7 @@ public class CartServiceImpl implements CartService {
         return CartItem.builder()
                 .productId(requestDto.getProductId())
                 .quantity(1)
+                .wishlist(requestDto.isWishlist()) // 👈 important!
                 .build();
     }
 
@@ -191,21 +276,44 @@ public class CartServiceImpl implements CartService {
     }
 
     private CartItem createCartItem(Set<CartItem> userCartItems, CartItemRequestDto requestDto) {
-
         CartItem cartItem = getExistingCartItem(userCartItems, requestDto.getProductId());
 
         if (cartItem == null) {
             cartItem = getNewCartItem(requestDto);
-        }else {
-            if (requestDto.getQuantity() <= 0) requestDto.setQuantity(-1);
-            if (requestDto.getQuantity() > 0) requestDto.setQuantity(1);
-            if (cartItem.getQuantity() + requestDto.getQuantity() <= 0) requestDto.setQuantity(0);
+
+            // Don't set quantity if it's wishlist
+            if (requestDto.isWishlist()) {
+                cartItem.setQuantity(0); // Or you could choose to set 1 or skip this
+            } else {
+                cartItem.setQuantity(1); // Default quantity when added to cart
+            }
+
+        } else {
             userCartItems.remove(cartItem);
-            cartItem.setQuantity(cartItem.getQuantity() + requestDto.getQuantity());
+
+            boolean wasWishlist = cartItem.isWishlist();
+            cartItem.setWishlist(requestDto.isWishlist());
+
+            // Only modify quantity if it's being added to cart (i.e., not wishlist)
+            if (!requestDto.isWishlist()) {
+                int quantityToAdd = requestDto.getQuantity();
+
+                // Normalize quantity input
+                if (quantityToAdd <= 0) quantityToAdd = -1;
+                else quantityToAdd = 1;
+
+                // Don't let quantity go negative
+                int newQuantity = cartItem.getQuantity() + quantityToAdd;
+                cartItem.setQuantity(Math.max(newQuantity, 0));
+            }
+
+            // If moved to wishlist, just retain the existing quantity without touching it
         }
 
         return cartItem;
     }
+
+
 
     private CartResponseDto cartToCartResponseDto(Cart userCart) {
         int noOfCartItems = 0;

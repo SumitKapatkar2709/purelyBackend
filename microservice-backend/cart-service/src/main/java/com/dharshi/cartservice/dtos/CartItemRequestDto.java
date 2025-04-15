@@ -8,4 +8,5 @@ import lombok.Data;
 public class CartItemRequestDto {
     private String productId;
     private int quantity;
+    private boolean wishlist;
 }

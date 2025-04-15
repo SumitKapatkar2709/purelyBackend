@@ -12,6 +12,7 @@ spring:
 
 server:
     port: 9030
+    address: 0.0.0.0
 
 eureka:
     client:
