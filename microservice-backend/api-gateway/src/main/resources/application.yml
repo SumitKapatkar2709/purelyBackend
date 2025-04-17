@@ -9,7 +9,7 @@ spring:
     gateway:
       discovery:
         locator:
-          enabled: true
+          enabled: true  # Enable service discovery for routes
       routes:
         - id: auth-service
           uri: lb://AUTH-SERVICE
@@ -69,10 +69,18 @@ spring:
             allowedMethods: '*'
             allowedHeaders: '*'
 
+  # Eureka Configuration
+  eureka:
+    client:
+      serviceUrl:
+        defaultZone: http://localhost:8761/eureka/
+    instance:
+      hostname: localhost  # Make sure this points to the right host if needed
 
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    hostname: localhost
+# Swagger Configuration for API Gateway
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    url: /v3/api-docs  # Swagger will aggregate the docs from all microservices
+    doc-expansion: none
