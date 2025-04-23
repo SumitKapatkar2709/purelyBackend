@@ -85,7 +85,7 @@ public class CartController {
     ResponseEntity<ApiResponseDto<?>> clearCartById(@RequestParam String id) throws ResourceNotFoundException, ServiceLogicException {
         return cartService.clearCartById(id);
     }
-    @CrossOrigin(origins = "http://127.0.0.1:5173")
+    @CrossOrigin(origins = "*")
     @PostMapping("/checkout")
     @PreAuthorize("hasRole('ROLE_USER')")
     public ResponseEntity<ApiResponseDto<?>> createCheckoutSession(Authentication authentication,
