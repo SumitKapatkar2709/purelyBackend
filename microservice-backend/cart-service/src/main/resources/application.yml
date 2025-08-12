@@ -16,4 +16,4 @@ eureka:
         prefer-ip-address: true
 
 stripe:
-    secret-key: sk_test_51R3L9MIWECciELsFfkneMVwJS44dOdWBRu9T86UOGNvp0CXy9LMsJepgR8C7IS60cnSZNIkJOkuxe2exRgntAFnt00lzlILi3Q
+    secret-key: 
